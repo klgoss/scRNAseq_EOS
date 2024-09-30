@@ -10,7 +10,7 @@ library(annotate)
 library(clusterProfiler)
 
 set.seed(123)
-setwd("/Users/kyndalgoss/Desktop/MELANIE/")
+setwd("")
 
 # read patient A01 data
 a01.data <- Read10X("A01_EOS/filtered_feature_bc_matrix/")
@@ -195,17 +195,6 @@ c02$patient <- "C02"
 c03$patient <- "C03"
 c04$patient <- "C04"
 
-#a01$batch <- "3"
-#a02$batch <- "2"
-#a03$batch <- "3"
-#a04$batch <- "2"
-#a05$batch <- "2"
-#a06$batch <- "2"
-#b01$batch <- "1"
-#b02$batch <- "3"
-#b03$batch <- "3"
-#b05$batch <- "4"
-
 # analyze combined datasets
 obj <- merge(a01, y = c(a02, a03, a04, a05, a06, b01, b02, b03, b05, c01, c02, c03, c04), add.cell.ids = c("a01", "a02", "a03", "a04", "a05", "a06", "b01", "b02", "b03", "b05", "c01", "c02", "c03", "c04"), project = "EOS")
 
@@ -281,11 +270,6 @@ FeaturePlot(obj, features = "IL5RA", order=T)
 FeaturePlot(obj, features = "EPX", order=T) 
 FeaturePlot(obj, features = "PRG2", order=T)
 
-# platelet marker
-FeaturePlot(obj, features = "PPBP", order=T) 
-FeaturePlot(obj, features = "PF4", order=T) 
-FeaturePlot(obj, features = "TUBB1", order=T)
-
 # Cluster markers
 Idents(obj) <- obj$RNA_snn_res.0.1
 markers <- FindAllMarkers(obj, only.pos = T, min.pct = 0.1)
@@ -294,7 +278,6 @@ markers <- markers[markers$p_val_adj < 0.05,]
 cluster2_vs_cluster3 <- FindMarkers(obj, ident.1="2", ident.2="3", logfc.threshold = 0.25)
 cluster2_vs_cluster3 <- cluster2_vs_cluster3[cluster2_vs_cluster3$p_val_adj < 0.05,]
 write.table(cluster2_vs_cluster3, file="Cluster2_vs_Cluster3.tsv", quote = F, sep = "\t", row.names = T, col.names = T)
-
 
 keyvals <- ifelse(
   cluster2_vs_cluster3$avg_log2FC > 0, '#00BFC4',
@@ -310,63 +293,10 @@ ggsave(volcano, filename = "../AsthmaSeq-EOS-paper/figures/cluster2_vs_cluster3_
 cluster2_up <- cluster2_vs_cluster3[cluster2_vs_cluster3$avg_log2FC > 0,]
 cluster3_up <- cluster2_vs_cluster3[cluster2_vs_cluster3$avg_log2FC < 0,]
 
-top100_c2 <- cluster2_up %>%
-  top_n(100, avg_log2FC)
-
-top100_c3 <- cluster3_up %>%
-  top_n(100, avg_log2FC)
-
-obj <- ScaleData(obj, features = rownames(obj))
-
-# pathway analysis cluster 2 vs cluster 3
-cluster2_entrez <- AnnotationDbi::select(EnsDb.Hsapiens.v86,
-                                        keys = rownames(cluster2_up),
-                                        columns = "ENTREZID",
-                                        keytype = "GENENAME")
-
-cluster3_entrez <- AnnotationDbi::select(EnsDb.Hsapiens.v86,
-                                       keys = rownames(cluster3_up),
-                                       columns = "ENTREZID",
-                                       keytype = "GENENAME")
-
-
-# GSEA on cluster 2 vs cluster 3
-cluster2_vs_cluster3 <- FindMarkers(obj, ident.1="2", ident.2="3", logfc.threshold = 0.25)
-
-cluster2_vs_cluster3 <- cluster2_vs_cluster3[order(-cluster2_vs_cluster3$avg_log2FC),]
-
-gene_list <- cluster2_vs_cluster3$avg_log2FC
-names(gene_list) <- rownames(cluster2_vs_cluster3)
-gene_list
-
-m_df <- msigdbr(species = "Homo sapiens", category = "H") %>% 
-  dplyr::select(gs_name, entrez_gene)
-
-m_df$symbol <- getSYMBOL(as.character(m_df$entrez_gene), data = 'org.Hs.eg')
-
-H_t2g <- m_df %>% dplyr::select(gs_name, symbol)
-
-c2 <- msigdbr(species = "Homo sapiens", category = "C2") %>% dplyr::select(gs_name, gene_symbol)
-
-em2 <- GSEA(gene_list, TERM2GENE = H_t2g, eps = 1e-300)
-df <- as.data.frame(em2@result)
-
-df$direction <- ifelse(df$NES > 0, yes = "cluster 2 (asthma)", no = "cluster 3 (healthy)")
-df$Description <- factor(df$Description, levels = df$Description[order(df$NES)])
-gsea_bar <- ggplot(df, aes(x = Description, y = NES, fill = direction)) + geom_bar(stat="identity") + coord_flip() + theme_classic() + scale_fill_manual("legend", values = c("cluster 2 (asthma)" = '#00BFC4', "cluster 3 (healthy)" = '#C77CFF'))
-ggsave(gsea_bar, filename = "../AsthmaSeq-EOS-paper/figures/c2_v_c3_GSEAbar.svg")
-
-enrichplot::gseaplot2(em2, geneSetID = 1, title = "Hallmark Interferon Alpha response")
-
-
-
-
 
 ############################################
 # Find DEGs between healthy vs asthma EOS #
 Idents(obj) <- obj$severity1
-
-#a <- FindAllMarkers(obj, only.pos = T, min.pct = 0.1, logfc.threshold = 0.25)
 
 b <- FindMarkers(obj, ident.1 = "healthy", ident.2 = "asthma", group.by = "severity1", logfc.threshold = 0.25, min.pct = 0.1)
 
